@@ -1,24 +1,101 @@
 # 🚀 Real-Time Chat Backend using Spring Boot & Redis Pub/Sub
 
-A backend-only real-time chat application built with **Spring Boot** and **Redis Pub/Sub**.
+A backend-only real-time chat application built with **Spring Boot** and **Redis Pub/Sub** that demonstrates event-driven communication using Redis.
 
-The application demonstrates how Redis Pub/Sub can be used for instant message broadcasting while Redis data structures are used for storing chat rooms, participants, and message history.
-
----
-
-# Features
-
-- ✅ Create Chat Rooms
-- ✅ Join Existing Chat Rooms
-- ✅ Send Messages
-- ✅ Real-Time Message Broadcasting using Redis Pub/Sub
-- ✅ Retrieve Chat History
-- ✅ Redis In-Memory Storage
-- ✅ REST APIs
+The application allows users to create chat rooms, join existing rooms, exchange messages in real time, and retrieve chat history using Redis as both the message broker and in-memory data store.
 
 ---
 
-# Tech Stack
+## ✨ Features
+
+## Create Chat Room
+
+![Create Room](docs/screenshots/create-room.png)
+
+## Send Message
+
+![Send Message](docs/screenshots/send-message.png)
+
+## Redis Monitor
+
+![Redis Monitor](docs/screenshots/redis-monitor.png)
+
+## Subscriber Output
+
+![Spring Console](docs/screenshots/spring-console.png)
+
+---
+
+# 🏗 Architecture
+
+![Architecture](docs/architecture.png)
+
+### Request Flow
+
+```
+Client
+   │
+REST API
+   │
+ChatRoomController
+   │
+ChatRoomService
+   │
+ ├───────────────┐
+ │               │
+ ▼               ▼
+Redis Storage   Redis Publisher
+                    │
+                    ▼
+              Redis Pub/Sub
+                    │
+                    ▼
+          Redis Subscriber
+                    │
+                    ▼
+             Console Output
+```
+
+---
+
+# 📦 Redis Data Model
+
+| Redis Key | Type | Purpose |
+|------------|------|---------|
+| `CHAT_ROOMS` | Hash | Stores available chat rooms |
+| `CHAT_ROOM:{room}:PARTICIPANTS` | Set | Stores participants in a room |
+| `CHAT_ROOM:{room}:MESSAGES` | List | Stores chat history |
+| `chatroom` | Pub/Sub Channel | Broadcasts new chat messages |
+
+---
+
+# 📂 Project Structure
+
+```
+src/main/java/com/example/chatapp
+│
+├── config
+│   └── RedisConfig.java
+│
+├── controller
+│   └── ChatRoomController.java
+│
+├── model
+│
+├── pubsub
+│   ├── RedisMessagePublisher.java
+│   ├── RedisMessagePublisherImpl.java
+│   └── RedisMessageSubscriber.java
+│
+├── service
+│   └── ChatRoomService.java
+│
+└── ChatappApplication.java
+```
+
+---
+
+# 🛠 Tech Stack
 
 - Java 17
 - Spring Boot 3
@@ -26,59 +103,24 @@ The application demonstrates how Redis Pub/Sub can be used for instant message b
 - Redis Pub/Sub
 - Maven
 - Docker
-- REST API
+- REST APIs
 
 ---
 
-# Project Structure
+# 🚀 Getting Started
 
-```
-src
-├── config
-│   └── RedisConfig.java
-├── controller
-│   └── ChatRoomController.java
-├── model
-├── pubsub
-│   ├── RedisMessagePublisher.java
-│   ├── RedisMessagePublisherImpl.java
-│   └── RedisMessageSubscriber.java
-├── service
-│   └── ChatRoomService.java
-└── ChatappApplication.java
-```
+## Prerequisites
+
+- Java 17+
+- Docker Desktop
+- Maven (or Maven Wrapper)
 
 ---
-
-# Architecture
-
-```
-Client
-   │
-REST APIs
-   │
-Spring Boot
-   │
-───────────────
-Chat Service
-───────────────
-      │
-      │
-Redis
-├── Pub/Sub
-├── Chat Rooms
-├── Participants
-└── Message History
-```
-
----
-
-# Getting Started
 
 ## Clone Repository
 
 ```bash
-git clone https://github.com/<your-username>/real-time-chat-backend.git
+git clone https://github.com/Mohitkundu360/real-time-chat-backend.git
 
 cd real-time-chat-backend
 ```
@@ -87,13 +129,11 @@ cd real-time-chat-backend
 
 ## Start Redis
 
-### Docker
-
 ```bash
 docker run --name redis-chat -p 6379:6379 -d redis
 ```
 
-Verify
+Verify:
 
 ```bash
 docker ps
@@ -103,7 +143,7 @@ docker ps
 
 ## Configure Redis
 
-application.properties
+Update `application.properties`
 
 ```properties
 spring.data.redis.host=localhost
@@ -112,7 +152,7 @@ spring.data.redis.port=6379
 
 ---
 
-## Run Project
+## Run the Application
 
 Windows
 
@@ -120,13 +160,13 @@ Windows
 .\mvnw.cmd spring-boot:run
 ```
 
-Linux/Mac
+Linux / macOS
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Application runs on
+Application starts on
 
 ```
 http://localhost:8080
@@ -134,17 +174,17 @@ http://localhost:8080
 
 ---
 
-# API Endpoints
+# 📖 REST APIs
 
-## 1. Create Chat Room
+## 1️⃣ Create Chat Room
 
-POST
+**POST**
 
 ```
 /api/chatapp/chatrooms
 ```
 
-Body
+Request
 
 ```json
 {
@@ -152,17 +192,27 @@ Body
 }
 ```
 
+Response
+
+```json
+{
+  "message":"Chat room 'engineering' created successfully.",
+  "roomId":"engineering",
+  "status":"success"
+}
+```
+
 ---
 
-## 2. Join Chat Room
+## 2️⃣ Join Chat Room
 
-POST
+**POST**
 
 ```
 /api/chatapp/chatrooms/engineering/join
 ```
 
-Body
+Request
 
 ```json
 {
@@ -170,17 +220,26 @@ Body
 }
 ```
 
+Response
+
+```json
+{
+  "message":"User 'Mohit' joined chat room 'engineering'.",
+  "status":"success"
+}
+```
+
 ---
 
-## 3. Send Message
+## 3️⃣ Send Message
 
-POST
+**POST**
 
 ```
 /api/chatapp/chatrooms/engineering/messages
 ```
 
-Body
+Request
 
 ```json
 {
@@ -189,11 +248,20 @@ Body
 }
 ```
 
+Response
+
+```json
+{
+  "message":"Message sent successfully.",
+  "status":"success"
+}
+```
+
 ---
 
-## 4. Get Chat History
+## 4️⃣ Retrieve Chat History
 
-GET
+**GET**
 
 ```
 /api/chatapp/chatrooms/engineering/messages?limit=10
@@ -201,11 +269,11 @@ GET
 
 ---
 
-# Testing
+# 🧪 Testing
 
-The APIs were tested using PowerShell.
+The APIs were verified locally using **PowerShell**.
 
-Example
+Example:
 
 ```powershell
 Invoke-RestMethod `
@@ -217,43 +285,78 @@ Invoke-RestMethod `
 
 ---
 
-# Redis Pub/Sub Verification
+# 📡 Redis Pub/Sub Verification
 
-Redis Monitor confirms message publishing:
+Redis MONITOR confirms message publishing.
 
 ```
+SUBSCRIBE chatroom
+
 PUBLISH chatroom
 ```
 
-Spring Boot Subscriber receives:
+Spring Boot Subscriber receives
 
 ```
 Received message:
+
 Mohit: Hello from portfolio demo
 ```
 
-This verifies that Redis Pub/Sub is functioning correctly.
+Redis also stores chat history using Redis Lists.
 
 ---
 
-# Future Improvements
+# 📸 Project Screenshots
 
-- WebSocket support for browser clients
+## Create Chat Room
+
+> docs/screenshots/create-room.png
+
+## Join Chat Room
+
+> docs/screenshots/join-room.png
+
+## Send Message
+
+> docs/screenshots/send-message.png
+
+## Redis Pub/Sub Monitor
+
+> docs/screenshots/redis-monitor.png
+
+## Spring Boot Subscriber
+
+> docs/screenshots/spring-console.png
+
+---
+
+# 📌 Current Limitations
+
+- No authentication
+- No WebSocket client
+- Uses Redis as the primary storage
+- No persistent relational database
+- No automated test suite
+
+---
+
+# 🚀 Future Improvements
+
 - JWT Authentication
-- User Registration/Login
-- Private Messaging
-- Persistent Database (PostgreSQL/MySQL)
-- Docker Compose
+- WebSocket/STOMP support
+- PostgreSQL persistence
+- Docker Compose setup
 - Unit & Integration Tests
-- Swagger/OpenAPI Documentation
+- Swagger / OpenAPI Documentation
+- Multi-room WebSocket client
 
 ---
 
-# Author
+# 👨‍💻 Author
 
 **Mohit Kundu**
 
 Backend Software Engineer
 
-GitHub:
-https://github.com/Mohitkundu360
+GitHub: https://github.com/Mohitkundu360
