@@ -1,26 +1,34 @@
 package com.example.chatapp.service;
 
+import com.example.chatapp.model.ChatMessage;
 import com.example.chatapp.pubsub.RedisMessagePublisher;
+import com.example.chatapp.repository.ChatMessageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class ChatRoomService {
 
     private static final String CHAT_ROOMS_KEY = "CHAT_ROOMS";
+    private static final int MAX_HISTORY_LIMIT = 100;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private RedisMessagePublisher redisMessagePublisher;
+
+    @Autowired
+    private ChatMessageRepository chatMessageRepository;
 
     /**
      * Create a chat room.
@@ -69,9 +77,10 @@ public class ChatRoomService {
     }
 
     /**
-     * Retrieve chat history for a chat room.
+     * Retrieve chat history for a chat room from PostgreSQL.
+     * Returns the latest {limit} messages in chronological order.
      */
-    @SuppressWarnings("unchecked")
+    @Transactional(readOnly = true)
     public ResponseEntity<?> getChatHistory(String roomId, int limit) {
         Boolean roomExists = redisTemplate.opsForHash().hasKey(CHAT_ROOMS_KEY, roomId);
         if (roomExists == null || !roomExists) {
@@ -81,14 +90,19 @@ public class ChatRoomService {
             return ResponseEntity.badRequest().body(response);
         }
 
-        String messagesKey = "CHAT_ROOM:" + roomId + ":MESSAGES";
-        List<Object> messagesFromRedis = redisTemplate.opsForList().range(messagesKey, -limit, -1);
+        int safeLimit = Math.max(1, Math.min(limit, MAX_HISTORY_LIMIT));
+        List<ChatMessage> newestFirst = chatMessageRepository
+                .findByRoomIdOrderByCreatedAtDesc(roomId, PageRequest.of(0, safeLimit));
 
+        // Reverse so the client receives oldest to newest
         List<Map<String, Object>> messages = new ArrayList<>();
-        if (messagesFromRedis != null) {
-            for (Object obj : messagesFromRedis) {
-                messages.add((Map<String, Object>) obj);
-            }
+        for (int i = newestFirst.size() - 1; i >= 0; i--) {
+            ChatMessage row = newestFirst.get(i);
+            Map<String, Object> item = new HashMap<>();
+            item.put("participant", row.getParticipant());
+            item.put("message", row.getContent());
+            item.put("timestamp", row.getCreatedAt().toString());
+            messages.add(item);
         }
 
         Map<String, Object> response = new HashMap<>();
@@ -98,7 +112,7 @@ public class ChatRoomService {
     }
 
     /**
-     * Send a message to the chat room and publish via Redis Pub/Sub.
+     * Persist the message in PostgreSQL, then publish via Redis Pub/Sub.
      */
     public ResponseEntity<?> sendMessage(String roomId, String participant, String message) {
         Boolean roomExists = redisTemplate.opsForHash().hasKey(CHAT_ROOMS_KEY, roomId);
@@ -109,16 +123,10 @@ public class ChatRoomService {
             return ResponseEntity.badRequest().body(response);
         }
 
-        // Save the message to Redis List
-        String messagesKey = "CHAT_ROOM:" + roomId + ":MESSAGES";
-        Map<String, Object> messageData = new HashMap<>();
-        messageData.put("participant", participant);
-        messageData.put("message", message);
-        messageData.put("timestamp", java.time.Instant.now().toString());
+        // Durable write first, so a Pub/Sub failure never loses history
+        chatMessageRepository.save(new ChatMessage(roomId, participant, message));
 
-        redisTemplate.opsForList().rightPush(messagesKey, messageData);
-
-        // Publish the message to Redis channel for real-time delivery
+        // Real-time delivery
         redisMessagePublisher.publish("chatroom", participant + ": " + message);
 
         Map<String, Object> response = new HashMap<>();
