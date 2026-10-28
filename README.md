@@ -12,17 +12,18 @@ Backend-only, multi-room chat service built with Java 17, Spring Boot, Redis Pub
 
 ## Architecture
 
+```
 Client
-| REST
-v
+  |  REST
+  v
 ChatRoomController
-|
-v
+  |
+  v
 ChatRoomService
-|-- Redis: rooms (hash), participants (set)
-|-- PostgreSQL: chat_messages (history)
-|-- Redis publisher --> channel “chatroom” --> Redis subscriber (logs the message)
-
+  |-- Redis: rooms (hash), participants (set)
+  |-- PostgreSQL: chat_messages (history)
+  |-- Redis publisher --> channel "chatroom" --> Redis subscriber (logs the message)
+```
 
 | Data | Store | Why |
 |---|---|---|
@@ -165,19 +166,20 @@ There is no deployment step.
 
 ## Project structure
 
+```
 src/main/java/com/example/chatapp/
-config/ Redis configuration
-controller/ REST endpoints and OpenAPI annotations
-model/ ChatMessage entity, ChatRoom
-pubsub/ Redis publisher and subscriber
-repository/ Spring Data JPA repository
-service/ business logic
-src/test/ unit and integration tests
-load-test/ k6 script, results, notes
+  config/        Redis configuration
+  controller/    REST endpoints and OpenAPI annotations
+  model/         ChatMessage entity, ChatRoom
+  pubsub/        Redis publisher and subscriber
+  repository/    Spring Data JPA repository
+  service/       business logic
+src/test/        unit and integration tests
+load-test/       k6 script, results, notes
 docs/screenshots/
 .github/workflows/ci.yml
 docker-compose.yml, Dockerfile, .env.example
-
+```
 
 ## Limitations
 - No authentication or authorization.
