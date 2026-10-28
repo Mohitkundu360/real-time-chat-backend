@@ -1,327 +1,203 @@
-# Real-Time Chat Backend — Spring Boot, Redis & PostgreSQL
+# Real-Time Chat Backend
 
-A backend-only, multi-room chat application built with **Java 17, Spring Boot, Redis Pub/Sub, and PostgreSQL**. The project demonstrates REST API design, event-driven messaging, relational persistence, containerized development, automated testing, API documentation, and load testing.
+![CI](https://github.com/Mohitkundu360/real-time-chat-backend/actions/workflows/ci.yml/badge.svg)
 
-The application supports creating chat rooms, joining rooms, publishing messages, and retrieving chat history through REST endpoints.
+Backend-only, multi-room chat service built with Java 17, Spring Boot, Redis Pub/Sub and PostgreSQL. It exposes four REST endpoints, stores chat history in PostgreSQL, and publishes every message on a Redis channel.
 
-## Features
-
-* **Chat room management:** Create rooms and register participants.
-* **Real-time message distribution:** Publish chat messages through Redis Pub/Sub.
-* **PostgreSQL persistence:** Store chat history in a relational database.
-* **Redis data management:** Maintain room-related state and support message distribution.
-* **REST APIs:** Create rooms, join rooms, send messages, and retrieve history.
-* **OpenAPI documentation:** Explore endpoints through Swagger UI.
-* **Automated testing:** Maven tests with PostgreSQL and Redis integration support.
-* **Containerization:** Docker and Docker Compose support.
-* **Load testing:** k6 scripts and recorded results in `load-test/`.
+## What it does
+- Create rooms, join them, send messages and read history over REST (4 endpoints).
+- Sending a message saves it to PostgreSQL first, then publishes it on the Redis channel `chatroom`.
+- Rooms and participants live in Redis. Chat history lives in PostgreSQL.
+- A subscriber inside the app receives published messages and logs them. Nothing is pushed to connected clients yet (no WebSocket).
 
 ## Architecture
 
-```text
-                    Client
-                      |
-                      v
-                REST Controllers
-                      |
-                      v
-                 Chat Services
-                  /         \
-                 v           v
-          Redis Storage   PostgreSQL
-          Room state      Chat history
-                 |
-                 v
-           Redis Publisher
-                 |
-                 v
-             Redis Pub/Sub
-                 |
-                 v
-           Redis Subscriber
-```
+Client
+| REST
+v
+ChatRoomController
+|
+v
+ChatRoomService
+|-- Redis: rooms (hash), participants (set)
+|-- PostgreSQL: chat_messages (history)
+|-- Redis publisher --> channel “chatroom” --> Redis subscriber (logs the message)
 
-Redis and PostgreSQL serve different purposes: Redis supports room-related state and message distribution, while PostgreSQL provides relational persistence for chat history.
 
-### Message flow
+| Data | Store | Why |
+|---|---|---|
+| Rooms, participants | Redis (`CHAT_ROOMS` hash, `CHAT_ROOM:{room}:PARTICIPANTS` set) | Fast lookups |
+| Message history | PostgreSQL table `chat_messages` | Durable, indexed, queryable |
+| Live distribution | Redis Pub/Sub channel `chatroom` | Fan-out to subscribers |
 
-1. A client submits a request to a REST endpoint.
-2. The controller delegates the operation to the service layer.
-3. The application updates the relevant room state or persists chat history.
-4. Messages are published through Redis Pub/Sub.
-5. Redis subscribers receive published messages.
+Redis Pub/Sub has no acknowledgements or durability. A subscriber that is down misses messages. The database copy is why history survives.
 
-**Note:** Redis Pub/Sub provides message distribution, not durable message delivery guarantees. A disconnected subscriber can miss messages.
+## Tech stack
 
-## Technology Stack
+| Area | Technology |
+|---|---|
+| Language | Java 17 |
+| Framework | Spring Boot 3.5, Spring Web, Spring Data JPA, Spring Data Redis |
+| Datastores | PostgreSQL 16, Redis 7 |
+| API docs | springdoc OpenAPI, Swagger UI |
+| Tests | JUnit 5, Mockito, Testcontainers |
+| Containers | Docker, Docker Compose |
+| CI | GitHub Actions (no deployment step) |
+| Load test | k6 |
 
-| Component           | Technology                              |
-| ------------------- | --------------------------------------- |
-| Language            | Java 17                                 |
-| Framework           | Spring Boot 3                           |
-| API layer           | Spring Web / REST                       |
-| Messaging           | Redis Pub/Sub                           |
-| In-memory state     | Redis                                   |
-| Relational database | PostgreSQL                              |
-| Persistence         | Spring Data JPA                         |
-| Build               | Maven                                   |
-| API documentation   | springdoc OpenAPI / Swagger UI          |
-| Containers          | Docker, Docker Compose                  |
-| Testing             | Spring Boot Test, JUnit, Testcontainers |
-| Load testing        | k6                                      |
-| CI/CD               | GitHub Actions                          |
+## Getting started
 
-## Project Structure
-
-```text
-real-time-chat-backend/
-├── .github/
-│   └── workflows/
-├── docs/
-│   ├── architecture.png
-│   └── screenshots/
-│       └── swagger-ui.png
-├── load-test/
-├── src/
-│   ├── main/
-│   │   └── java/com/example/chatapp/
-│   │       ├── config/
-│   │       ├── controller/
-│   │       ├── model/
-│   │       ├── pubsub/
-│   │       ├── service/
-│   │       └── ChatappApplication.java
-│   └── test/
-├── .env.example
-├── Dockerfile
-├── docker-compose.yml
-├── mvnw
-├── mvnw.cmd
-├── pom.xml
-└── README.md
-```
-
-The directory listing above describes the principal project components. Refer to the repository for the complete source and test file list.
-
-## Getting Started
-
-### Prerequisites
-
-* Java 17 or a compatible configured JDK
-* Docker Desktop with Docker Compose
-* Git
-
-The Maven Wrapper (`mvnw` / `mvnw.cmd`) is included, so a separate Maven installation is not normally required.
-
-### 1. Clone the repository
+Prerequisites: Java 17, Docker Desktop with Compose, Git. The Maven wrapper is included.
 
 ```bash
 git clone https://github.com/Mohitkundu360/real-time-chat-backend.git
 cd real-time-chat-backend
 ```
 
-To work with the current development branch:
-
+### Option A: whole stack in Docker
 ```bash
-git switch feature/postgres-persistence
-```
-
-### 2. Configure environment variables
-
-Start with the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-On Windows Command Prompt:
-
-```cmd
-copy .env.example .env
-```
-
-Review `.env` and configure the required database, Redis, and application settings for your environment. Do not commit real credentials or production secrets.
-
-### 3. Start the application stack
-
-```bash
-docker compose up --build
-```
-
-Check the container status:
-
-```bash
+docker compose up -d --build
 docker compose ps
 ```
 
-Use the service configuration in `docker-compose.yml` and `.env.example` to confirm the actual ports and health checks for your checkout.
+| Service | Host port |
+|---|---|
+| App | 8080 |
+| PostgreSQL | 5433 (container 5432) |
+| Redis | 6380 (container 6379) |
 
-### 4. Access the API
+No `.env` is needed. Copy `.env.example` to `.env` only to change the Postgres password. The password is set when the database volume is first created, so changing it later has no effect on an existing volume.
 
-Application base URL:
-
-```text
-http://localhost:8080
-```
-
-Swagger UI:
-
-```text
-http://localhost:8080/swagger-ui.html
-```
-
-OpenAPI specification:
-
-```text
-http://localhost:8080/v3/api-docs
-```
-
-The OpenAPI document describes the API endpoints and their request/response schemas. These documentation endpoints are enabled for development and demonstration; secure or disable them as appropriate in production.
-
-## REST API Reference
-
-The API uses the `/api/chatapp/chatrooms` route prefix.
-
-| Operation             | Method | Endpoint                                            |
-| --------------------- | ------ | --------------------------------------------------- |
-| Create a chat room    | POST   | `/api/chatapp/chatrooms`                            |
-| Join a room           | POST   | `/api/chatapp/chatrooms/{roomId}/join`              |
-| Send a message        | POST   | `/api/chatapp/chatrooms/{roomId}/messages`          |
-| Retrieve chat history | GET    | `/api/chatapp/chatrooms/{roomId}/messages?limit=10` |
-
-### Create a chat room
-
-**Request**
-
-```http
-POST /api/chatapp/chatrooms
-Content-Type: application/json
-```
-
-```json
-{
-  "roomName": "engineering"
-}
-```
-
-### Join a room
-
-**Request**
-
-```http
-POST /api/chatapp/chatrooms/engineering/join
-Content-Type: application/json
-```
-
-```json
-{
-  "participant": "Mohit"
-}
-```
-
-### Send a message
-
-**Request**
-
-```http
-POST /api/chatapp/chatrooms/engineering/messages
-Content-Type: application/json
-```
-
-```json
-{
-  "participant": "Mohit",
-  "message": "Hello from the chat backend"
-}
-```
-
-### Retrieve chat history
-
-```http
-GET /api/chatapp/chatrooms/engineering/messages?limit=10
-```
-
-For exact response schemas, status codes, and endpoint descriptions, use Swagger UI or the generated OpenAPI specification.
-
-## Testing
-
-Run the automated test suite using the Maven Wrapper.
-
-**Windows**
-
-```powershell
-.\mvnw.cmd clean test
-```
-
-**Linux / macOS / Git Bash**
-
+### Option B: app on your machine, infrastructure in Docker
 ```bash
-./mvnw clean test
+docker compose up -d postgres redis
+./mvnw spring-boot:run
+```
+Stop the app container first if it is running (`docker compose stop app`), because both use port 8080.
+
+### Configuration
+All values come from environment variables, with local defaults.
+
+| Variable | Default |
+|---|---|
+| `DB_URL` | `jdbc:postgresql://localhost:5433/chatdb` |
+| `DB_USERNAME` | `chat` |
+| `DB_PASSWORD` | `chat` |
+| `REDIS_HOST` | `localhost` |
+| `REDIS_PORT` | `6380` |
+| `REDIS_PASSWORD` | empty |
+
+The defaults are local development values only. Never commit real credentials.
+
+### Try it
+```bash
+curl -X POST http://localhost:8080/api/chatapp/chatrooms -H "Content-Type: application/json" -d '{"roomName":"engineering"}'
+curl -X POST http://localhost:8080/api/chatapp/chatrooms/engineering/join -H "Content-Type: application/json" -d '{"participant":"Mohit"}'
+curl -X POST http://localhost:8080/api/chatapp/chatrooms/engineering/messages -H "Content-Type: application/json" -d '{"participant":"Mohit","message":"Hello"}'
+curl "http://localhost:8080/api/chatapp/chatrooms/engineering/messages?limit=10"
 ```
 
-The project includes Spring Boot testing dependencies and Testcontainers support for PostgreSQL integration tests. Docker must be available when tests require containers.
+## API
 
-The Surefire configuration sets the test JVM timezone to UTC to help keep timezone-dependent tests consistent.
+| Operation | Method | Endpoint |
+|---|---|---|
+| Create a room | POST | `/api/chatapp/chatrooms` |
+| Join a room | POST | `/api/chatapp/chatrooms/{roomId}/join` |
+| Send a message | POST | `/api/chatapp/chatrooms/{roomId}/messages` |
+| Read history | GET | `/api/chatapp/chatrooms/{roomId}/messages?limit=10` |
 
-## Load Testing
+History returns the latest messages from PostgreSQL, oldest first. `limit` is clamped to 1-100.
 
-The `load-test/` directory contains the k6 load-testing assets and setup notes.
-
-See [`load-test/README.md`](load-test/README.md) for instructions and the recorded benchmark results.
-
-Use those recorded results when evaluating throughput and latency; results can vary with hardware, concurrency, configuration, and environment.
-
-## Screenshots
-
-### Swagger UI
+Swagger UI: `http://localhost:8080/swagger-ui.html`. OpenAPI JSON: `http://localhost:8080/v3/api-docs`.
 
 ![Swagger UI](docs/screenshots/swagger-ui.png)
 
-The screenshot illustrates the API documentation interface generated by springdoc OpenAPI.
+## Tests
+```bash
+docker compose up -d postgres redis
+./mvnw clean test
+```
 
-For the complete set of project screenshots and architecture assets, see [`docs/`](docs/).
+18 tests:
+- 13 Mockito unit tests (`ChatRoomServiceTest`): room checks, save-before-publish order, history ordering, limit clamping.
+- 4 repository tests against a real PostgreSQL 16 container (`ChatMessageRepositoryTest`, Testcontainers): query order, page size, room isolation, and that the composite index exists. Docker must be running.
+- 1 context test (`ChatappApplicationTests`): needs PostgreSQL and Redis reachable on 5433 and 6380. In CI they run as service containers.
 
-## Continuous Integration
+Surefire runs the test JVM in UTC. Testcontainers is pinned to 1.21.4 for compatibility with Docker Engine 29.
 
-GitHub Actions runs the project's CI workflow, including build and test steps with PostgreSQL and Redis services.
+## Index benchmark
+Table `chat_messages` has a composite index on `(room_id, created_at)`, matching the history query (latest N messages for one room).
 
-The development branch has successful workflow runs for:
+Local test: 200,000 messages across 50 rooms, PostgreSQL 16 in Docker, `EXPLAIN ANALYZE`, warm cache, single run each.
 
-* CI setup and automated tests
-* k6 load-test assets
-* OpenAPI and Swagger UI changes
-* Swagger UI screenshot
+```sql
+INSERT INTO chat_messages (room_id, participant, content, created_at)
+SELECT 'room-' || (g % 50), 'user' || (g % 20), 'msg ' || g, now() - (g || ' seconds')::interval
+FROM generate_series(1, 200000) g;
+ANALYZE chat_messages;
+EXPLAIN ANALYZE SELECT * FROM chat_messages WHERE room_id = 'room-7' ORDER BY created_at DESC LIMIT 10;
+```
 
-[View workflow runs](https://github.com/MohitKundu360/real-time-chat-backend/actions)
+| Setup | Plan | Execution time |
+|---|---|---|
+| With the index | Index Scan Backward | about 0.05 ms |
+| Index dropped | Parallel Seq Scan + top-N sort | about 8.9 ms |
 
-## Current Limitations
+Indicative only: one laptop, one run each.
 
-* No authentication or authorization is currently implemented.
-* A dedicated WebSocket/STOMP client is not included.
-* Redis Pub/Sub does not provide message acknowledgements or durable delivery.
-* Database schema evolution should move to a versioned migration tool as the project matures.
-* Swagger UI and OpenAPI endpoints should be secured or disabled in production.
-* Load-test results are environment-dependent and should not be treated as universal performance guarantees.
+## Load test
+`load-test/` has the k6 script, setup notes and raw summaries. Profile: ramp to 100 virtual users over 80 seconds. Each iteration sends one message and reads history, with 0.5-1 s think time.
 
-## Future Improvements
+| Run | Requests | Failed | p95 overall | p95 send | p95 history |
+|---|---|---|---|---|---|
+| 1 | 11,872 | 0.00% | 14.97 ms | 16.78 ms | 11.58 ms |
+| 2 | 11,974 | 0.00% | 11.21 ms | 12.76 ms | 8.18 ms |
+| 3 | 11,972 | 0.00% | 10.91 ms | 12.27 ms | 7.89 ms |
 
-* Add JWT-based authentication and room-level authorization.
-* Implement WebSocket/STOMP support for connected chat clients.
-* Introduce database migrations with Flyway or Liquibase.
-* Improve message-delivery guarantees and recovery behavior.
-* Add metrics, structured logging, and distributed tracing.
-* Expand load testing and document reproducible performance measurements.
+Load was about 150 requests/s. k6, the app, PostgreSQL and Redis shared one laptop (Core i5-12450H, 15.7 GB), so treat this as indicative, not a capacity benchmark. The number of stored messages matched the number of accepted sends. That checks persistence, not Pub/Sub delivery. Details in [load-test/README.md](load-test/README.md).
+
+## CI
+GitHub Actions runs on pushes to `main` and `feature/**` and on pull requests:
+- build and run all tests with PostgreSQL and Redis service containers
+- build the Docker image
+
+There is no deployment step.
+
+## Project structure
+
+src/main/java/com/example/chatapp/
+config/ Redis configuration
+controller/ REST endpoints and OpenAPI annotations
+model/ ChatMessage entity, ChatRoom
+pubsub/ Redis publisher and subscriber
+repository/ Spring Data JPA repository
+service/ business logic
+src/test/ unit and integration tests
+load-test/ k6 script, results, notes
+docs/screenshots/
+.github/workflows/ci.yml
+docker-compose.yml, Dockerfile, .env.example
+
+
+## Limitations
+- No authentication or authorization.
+- No WebSocket or STOMP client. Published messages are only logged by the in-app subscriber.
+- Redis Pub/Sub gives no acknowledgements or durable delivery.
+- Sending does not check that the sender joined the room. Request bodies are plain maps with minimal validation.
+- Schema is managed by Hibernate `ddl-auto=update`, not versioned migrations.
+- Swagger UI and `/v3/api-docs` are open. Secure or disable them in production.
+- Not deployed anywhere. The load and index numbers come from one laptop.
+
+## Next steps
+- JWT authentication and room-level authorization
+- WebSocket/STOMP delivery to connected clients
+- Flyway or Liquibase migrations
+- Request validation and error responses
+- Metrics and structured logging
 
 ## Author
-
-**Mohit Kundu**
-
-Backend Software Engineer
-
-* [GitHub](https://github.com/Mohitkundu360)
-* [LinkedIn](https://linkedin.com/in/mohitkundu-backend)
-* [Portfolio](https://portfolio-steel-mu-35.vercel.app)
+Mohit Kundu, backend engineer (Java, Spring Boot).
+[GitHub](https://github.com/Mohitkundu360) | [LinkedIn](https://www.linkedin.com/in/mohitkundu-backend) | [Portfolio](https://portfolio-steel-mu-35.vercel.app/)
 
 ## License
-
-This project is licensed under the MIT License. See [`LICENSE`](LICENSE).
+MIT. See [LICENSE](LICENSE).
