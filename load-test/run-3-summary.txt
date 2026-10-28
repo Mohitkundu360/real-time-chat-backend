@@ -1,0 +1,44 @@
+  █ THRESHOLDS 
+
+    http_req_duration
+    ✓ 'p(95)<500' p(95)=10.91ms
+
+      {name:get_history}
+      ✓ 'p(95)<500' p(95)=7.89ms
+
+      {name:send_message}
+      ✓ 'p(95)<500' p(95)=12.27ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 17903   222.257827/s
+    checks_succeeded...: 100.00% 17903 out of 17903
+    checks_failed......: 0.00%   0 out of 17903
+
+    ✓ room created
+    ✓ join 200
+    ✓ send 200
+    ✓ history 200
+    ✓ history has messages
+
+    HTTP
+    http_req_duration..............: avg=5.24ms   min=1.63ms  med=4.52ms   max=20.61ms p(90)=9.16ms   p(95)=10.91ms 
+      { expected_response:true }...: avg=5.24ms   min=1.63ms  med=4.52ms   max=20.61ms p(90)=9.16ms   p(95)=10.91ms 
+      { name:get_history }.........: avg=3.9ms    min=1.77ms  med=3.27ms   max=20.07ms p(90)=6.59ms   p(95)=7.89ms  
+      { name:send_message }........: avg=6.61ms   min=3.16ms  med=5.74ms   max=20.61ms p(90)=10.76ms  p(95)=12.27ms 
+    http_req_failed................: 0.00%  0 out of 11972
+    http_reqs......................: 11972  148.627085/s
+
+    EXECUTION
+    iteration_duration.............: avg=763.77ms min=507.4ms med=765.35ms max=1.02s   p(90)=964.84ms p(95)=988.23ms
+    iterations.....................: 5931   73.630742/s
+    vus............................: 4      min=3          max=99 
+    vus_max........................: 100    min=100        max=100
+
+    NETWORK
+    data_received..................: 7.2 MB 90 kB/s
+    data_sent......................: 2.2 MB 28 kB/s
