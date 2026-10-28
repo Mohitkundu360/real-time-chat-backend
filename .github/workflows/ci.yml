@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'feature/**' ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: chatdb
+          POSTGRES_USER: chat
+          POSTGRES_PASSWORD: chat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chat -d chatdb"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/chatdb
+      DB_USERNAME: chat
+      DB_PASSWORD: chat
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Make Maven wrapper executable
+        run: chmod +x mvnw
+
+      - name: Build and run tests
+        run: ./mvnw -B clean verify
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t chatapp:ci .
